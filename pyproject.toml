@@ -1,0 +1,23 @@
+[project]
+name = "wallet-api"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2.14.2",
+    "python-dotenv>=1.2.4",
+    "starlette>=1.10.0",
+    "uvicorn>=0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "httpx2>=2.16.2",
+    "pytest>=9.2.0",
+
+]
+[tool.pytest.ini_options]
+pythonpath = ["."]
