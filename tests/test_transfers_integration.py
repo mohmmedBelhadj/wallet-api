@@ -255,3 +255,40 @@ def test_transfer_rolls_back_when_insert_fails(
     assert balances[sender_id] == Decimal("5000.00")
     assert balances[recipient_id] == Decimal("2000.00")
     assert transfer_count == 0
+
+
+def test_get_wallets_from_database(
+    monkeypatch,
+    test_database_url,
+    wallet_data,
+):
+    monkeypatch.setenv("DATABASE_URL", test_database_url)
+    sender_id = wallet_data["sender_wallet_id"]
+    recipient_id = wallet_data["recipient_wallet_id"]
+
+    response = client.get("/wallets")
+
+    assert response.status_code == 200
+
+    wallets = response.json()
+
+    assert len(wallets) == 2
+
+    wallets_by_id = {
+        wallet["id"]: wallet
+        for wallet in wallets
+    }
+
+    assert wallets_by_id[sender_id] == {
+        "id": sender_id,
+        "owner": "Test Sender",
+        "balance": "5000.00",
+        "currency": "DZD",
+    }
+
+    assert wallets_by_id[recipient_id] == {
+        "id": recipient_id,
+        "owner": "Test Recipient",
+        "balance": "2000.00",
+        "currency": "DZD",
+    }

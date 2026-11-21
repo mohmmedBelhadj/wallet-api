@@ -41,6 +41,34 @@ class WalletRepository:
                     "currency": row[3],
                 }
 
+    def get_all(self):
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        w.id,
+                        u.full_name AS owner,
+                        w.balance,
+                        w.currency
+                    FROM wallets AS w
+                    JOIN users AS u ON u.id = w.user_id
+                    ORDER BY w.id
+                    """
+                )
+
+                rows = cur.fetchall()
+
+                return [
+                    {
+                        "id": row[0],
+                        "owner": row[1],
+                        "balance": row[2],
+                        "currency": row[3],
+                    }
+                    for row in rows
+                ]
+
     def transfer(
         self,
         sender_wallet_id: int,
