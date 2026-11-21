@@ -10,6 +10,9 @@ class WalletService:
     def get_wallet(self, wallet_id: int):
         return self.repository.get_by_id(wallet_id)
 
+    def get_wallets(self):
+        return self.repository.get_all()
+
     def transfer(
         self,
         sender_wallet_id: int,

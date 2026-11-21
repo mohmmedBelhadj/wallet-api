@@ -30,6 +30,18 @@ async def get_wallet(request):
     )
 
 
+async def get_wallets(request):
+    service = get_wallet_service()
+    wallets = service.get_wallets()
+
+    response = [
+        WalletResponseDTO.model_validate(wallet).model_dump(mode="json")
+        for wallet in wallets
+    ]
+
+    return JSONResponse(response)
+
+
 async def create_transfer(request):
     try:
         payload = await request.json()
@@ -78,6 +90,11 @@ routes = [
     Route(
         "/wallets/{wallet_id:int}",
         get_wallet,
+        methods=["GET"],
+    ),
+    Route(
+        "/wallets",
+        get_wallets,
         methods=["GET"],
     ),
     Route(
