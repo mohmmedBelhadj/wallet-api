@@ -10,10 +10,7 @@ user_id = 999
 
 
 with conn.cursor() as cur:
-    cur.execute(
-        'SELECT id, full_name, email FROM users WHERE id = %s',
-        (user_id,)
-    )
+    cur.execute("SELECT id, full_name, email FROM users WHERE id = %s", (user_id,))
 
     user = cur.fetchone()
 

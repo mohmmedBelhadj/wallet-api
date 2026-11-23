@@ -1,4 +1,3 @@
-
 import os
 from decimal import Decimal
 
@@ -46,8 +45,12 @@ def wallet_data(db_connection):
             RETURNING id
             """,
             (
-                user_ids[0], Decimal("5000.00"), "DZD",
-                user_ids[1], Decimal("2000.00"), "DZD",
+                user_ids[0],
+                Decimal("5000.00"),
+                "DZD",
+                user_ids[1],
+                Decimal("2000.00"),
+                "DZD",
             ),
         )
         wallet_ids = [row[0] for row in cur.fetchall()]
@@ -87,7 +90,6 @@ def wallet_data(db_connection):
         )
 
     db_connection.commit()
-
 
 
 @pytest.fixture
