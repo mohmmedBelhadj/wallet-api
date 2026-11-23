@@ -1,11 +1,11 @@
-
 from decimal import Decimal
-import pytest
+
 import psycopg
+import pytest
 from starlette.testclient import TestClient
 
 from main import app
-
+from src.wallet.repositories import WalletRepository
 
 client = TestClient(app)
 
@@ -52,8 +52,7 @@ def test_transfer_updates_database(
             FROM transfers
             WHERE sender_wallet_id = %s
               AND recipient_wallet_id = %s
-            ORDER BY id DESC
-            LIMIT 1
+            ORDER BY id DESC LIMIT 1
             """,
             (sender_id, recipient_id),
         )
@@ -131,7 +130,6 @@ def test_transfer_insufficient_funds_does_not_change_database(
     assert transfer_count == 0
 
 
-
 def test_transfer_different_currencies_does_not_change_database(
     monkeypatch,
     test_database_url,
@@ -161,9 +159,7 @@ def test_transfer_different_currencies_does_not_change_database(
     )
 
     assert response.status_code == 400
-    assert response.json() == {
-        "detail": "Wallet currencies do not match"
-    }
+    assert response.json() == {"detail": "Wallet currencies do not match"}
 
     # Verify that balances remain unchanged and no transfer was created.
     with db_connection.cursor() as cur:
@@ -176,8 +172,7 @@ def test_transfer_different_currencies_does_not_change_database(
             (sender_id, recipient_id),
         )
         wallets = {
-            row[0]: {"balance": row[1], "currency": row[2]}
-            for row in cur.fetchall()
+            row[0]: {"balance": row[1], "currency": row[2]} for row in cur.fetchall()
         }
 
         cur.execute(
@@ -200,7 +195,6 @@ def test_transfer_different_currencies_does_not_change_database(
         "currency": "USD",
     }
     assert transfer_count == 0
-
 
 
 def test_transfer_rolls_back_when_insert_fails(
@@ -274,10 +268,7 @@ def test_get_wallets_from_database(
 
     assert len(wallets) == 2
 
-    wallets_by_id = {
-        wallet["id"]: wallet
-        for wallet in wallets
-    }
+    wallets_by_id = {wallet["id"]: wallet for wallet in wallets}
 
     assert wallets_by_id[sender_id] == {
         "id": sender_id,
@@ -292,3 +283,87 @@ def test_get_wallets_from_database(
         "balance": "2000.00",
         "currency": "DZD",
     }
+
+
+def test_get_wallet_transfers_from_database(
+    monkeypatch,
+    test_database_url,
+    db_connection,
+    wallet_data,
+):
+    monkeypatch.setenv("DATABASE_URL", test_database_url)
+
+    sender_id = wallet_data["sender_wallet_id"]
+    recipient_id = wallet_data["recipient_wallet_id"]
+
+    with db_connection.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO transfers (sender_wallet_id,
+                                   recipient_wallet_id,
+                                   amount,
+                                   created_at)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (
+                sender_id,
+                recipient_id,
+                Decimal("500.00"),
+                "2026-11-20T10:00:00+00:00",
+            ),
+        )
+
+        cur.execute(
+            """
+            INSERT INTO transfers (sender_wallet_id,
+                                   recipient_wallet_id,
+                                   amount,
+                                   created_at)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (
+                recipient_id,
+                sender_id,
+                Decimal("200.00"),
+                "2026-11-21T10:00:00+00:00",
+            ),
+        )
+
+    db_connection.commit()
+
+    transfers = WalletRepository().get_transfers_by_wallet_id(sender_id)
+
+    assert len(transfers) == 2
+
+    assert transfers[0]["amount"] == Decimal("200.00")
+    assert transfers[0]["type"] == "incoming"
+
+    assert transfers[1]["amount"] == Decimal("500.00")
+    assert transfers[1]["type"] == "outgoing"
+
+    assert all(transfer["status"] == "completed" for transfer in transfers)
+
+
+def test_get_transfers_empty(
+    monkeypatch,
+    test_database_url,
+    wallet_data,
+):
+    monkeypatch.setenv("DATABASE_URL", test_database_url)
+
+    sender_id = wallet_data["sender_wallet_id"]
+
+    transfers = WalletRepository().get_transfers_by_wallet_id(sender_id)
+
+    assert transfers == []
+
+
+def test_get_transfers_wallet_not_found(
+    monkeypatch,
+    test_database_url,
+):
+    monkeypatch.setenv("DATABASE_URL", test_database_url)
+
+    transfers = WalletRepository().get_transfers_by_wallet_id(999999)
+
+    assert transfers is None

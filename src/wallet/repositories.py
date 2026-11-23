@@ -1,9 +1,8 @@
 import os
 from decimal import Decimal
 
-from dotenv import load_dotenv
 import psycopg
-
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -17,13 +16,12 @@ class WalletRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT
-                        w.id,
-                        u.full_name AS owner,
-                        w.balance,
-                        w.currency
+                    SELECT w.id,
+                           u.full_name AS owner,
+                           w.balance,
+                           w.currency
                     FROM wallets AS w
-                    JOIN users AS u ON u.id = w.user_id
+                             JOIN users AS u ON u.id = w.user_id
                     WHERE w.id = %s
                     """,
                     (wallet_id,),
@@ -46,13 +44,12 @@ class WalletRepository:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT
-                        w.id,
-                        u.full_name AS owner,
-                        w.balance,
-                        w.currency
+                    SELECT w.id,
+                           u.full_name AS owner,
+                           w.balance,
+                           w.currency
                     FROM wallets AS w
-                    JOIN users AS u ON u.id = w.user_id
+                             JOIN users AS u ON u.id = w.user_id
                     ORDER BY w.id
                     """
                 )
@@ -81,102 +78,95 @@ class WalletRepository:
         if amount <= 0:
             raise ValueError("Amount must be greater than zero")
 
-        with psycopg.connect(self.database_url) as conn:
-            with conn.transaction():
-                with conn.cursor() as cur:
+        with psycopg.connect(self.database_url) as conn, conn.transaction():
+            with conn.cursor() as cur:
+                # Lock both wallets in a consistent order.
+                wallet_ids = sorted([sender_wallet_id, recipient_wallet_id])
 
-                    # Lock both wallets in a consistent order.
-                    wallet_ids = sorted(
-                        [sender_wallet_id, recipient_wallet_id]
-                    )
-
-                    cur.execute(
-                        """
+                cur.execute(
+                    """
                         SELECT id, balance, currency
                         FROM wallets
                         WHERE id IN (%s, %s)
                         ORDER BY id
-                        FOR UPDATE
+                            FOR UPDATE
                         """,
-                        (wallet_ids[0], wallet_ids[1]),
-                    )
+                    (wallet_ids[0], wallet_ids[1]),
+                )
 
-                    rows = cur.fetchall()
+                rows = cur.fetchall()
 
-                    if len(rows) != 2:
-                        raise LookupError("Wallet not found")
+                if len(rows) != 2:
+                    raise LookupError("Wallet not found")
 
-                    wallets = {
-                        row[0]: {
-                            "balance": row[1],
-                            "currency": row[2],
-                        }
-                        for row in rows
+                wallets = {
+                    row[0]: {
+                        "balance": row[1],
+                        "currency": row[2],
                     }
+                    for row in rows
+                }
 
-                    sender = wallets[sender_wallet_id]
-                    recipient = wallets[recipient_wallet_id]
+                sender = wallets[sender_wallet_id]
+                recipient = wallets[recipient_wallet_id]
 
-                    if sender["currency"] != recipient["currency"]:
-                        raise ValueError("Wallet currencies do not match")
+                if sender["currency"] != recipient["currency"]:
+                    raise ValueError("Wallet currencies do not match")
 
-                    if sender["balance"] < amount:
-                        raise ArithmeticError("Insufficient funds")
+                if sender["balance"] < amount:
+                    raise ArithmeticError("Insufficient funds")
 
-                    # Deduct from sender.
-                    cur.execute(
-                        """
+                # Deduct from sender.
+                cur.execute(
+                    """
                         UPDATE wallets
                         SET balance = balance - %s
                         WHERE id = %s
                         """,
-                        (amount, sender_wallet_id),
-                    )
+                    (amount, sender_wallet_id),
+                )
 
-                    # Add to recipient.
-                    cur.execute(
-                        """
+                # Add to recipient.
+                cur.execute(
+                    """
                         UPDATE wallets
                         SET balance = balance + %s
                         WHERE id = %s
                         """,
-                        (amount, recipient_wallet_id),
-                    )
+                    (amount, recipient_wallet_id),
+                )
 
-                    # Record the transfer.
-                    cur.execute(
-                        """
-                        INSERT INTO transfers (
-                            sender_wallet_id,
-                            recipient_wallet_id,
-                            amount
-                        )
+                # Record the transfer.
+                cur.execute(
+                    """
+                        INSERT INTO transfers (sender_wallet_id,
+                                               recipient_wallet_id,
+                                               amount)
                         VALUES (%s, %s, %s)
                         """,
-                        (
-                            sender_wallet_id,
-                            recipient_wallet_id,
-                            amount,
-                        ),
-                    )
+                    (
+                        sender_wallet_id,
+                        recipient_wallet_id,
+                        amount,
+                    ),
+                )
 
-                    # Read the updated wallets for the API response.
-                    sender_wallet = self._get_wallet(cur, sender_wallet_id)
-                    recipient_wallet = self._get_wallet(cur, recipient_wallet_id)
+                # Read the updated wallets for the API response.
+                sender_wallet = self._get_wallet(cur, sender_wallet_id)
+                recipient_wallet = self._get_wallet(cur, recipient_wallet_id)
 
-                    return sender_wallet, recipient_wallet
+                return sender_wallet, recipient_wallet
 
     @staticmethod
     def _get_wallet(cur, wallet_id: int):
         cur.execute(
             """
-            SELECT
-                w.id,
-                u.full_name AS owner,
-                w.balance,
-                w.currency
+            SELECT w.id,
+                   u.full_name AS owner,
+                   w.balance,
+                   w.currency
             FROM wallets AS w
-            JOIN users AS u ON u.id = w.user_id
+                     JOIN users AS u ON u.id = w.user_id
             WHERE w.id = %s
             """,
             (wallet_id,),
@@ -190,3 +180,40 @@ class WalletRepository:
             "balance": row[2],
             "currency": row[3],
         }
+
+    def get_transfers_by_wallet_id(self, wallet_id: int):
+        if self.get_by_id(wallet_id) is None:
+            return None
+
+        with psycopg.connect(self.database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                            SELECT id,
+                                   amount,
+                                   status,
+                                   created_at,
+                                   CASE
+                                       WHEN sender_wallet_id = %s THEN 'outgoing'
+                                       WHEN recipient_wallet_id = %s THEN 'incoming'
+                                       END
+                                       AS type
+                            FROM transfers
+                            WHERE sender_wallet_id = %s
+                               OR recipient_wallet_id = %s
+                            ORDER BY created_at DESC, id DESC
+                            """,
+                    (wallet_id, wallet_id, wallet_id, wallet_id),
+                )
+                rows = cur.fetchall()
+
+                return [
+                    {
+                        "id": row[0],
+                        "amount": row[1],
+                        "status": row[2],
+                        "created_at": row[3],
+                        "type": row[4],
+                    }
+                    for row in rows
+                ]

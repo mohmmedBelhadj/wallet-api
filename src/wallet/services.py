@@ -30,3 +30,6 @@ class WalletService:
             recipient_wallet_id=recipient_wallet_id,
             amount=amount,
         )
+
+    def get_wallet_transfers(self, wallet_id: int):
+        return self.repository.get_transfers_by_wallet_id(wallet_id)

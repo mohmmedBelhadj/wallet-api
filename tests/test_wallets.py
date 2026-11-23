@@ -5,7 +5,6 @@ from starlette.testclient import TestClient
 
 from main import app
 
-
 client = TestClient(app)
 
 
@@ -38,9 +37,7 @@ def test_get_wallet_not_found():
         response = client.get("/wallets/999")
 
     assert response.status_code == 404
-    assert response.json() == {
-        "detail": "Wallet not found"
-    }
+    assert response.json() == {"detail": "Wallet not found"}
 
 
 def test_get_wallets_success():
@@ -80,6 +77,7 @@ def test_get_wallets_success():
             },
         ]
 
+
 def test_get_wallets_empty():
     with patch("src.wallet.routes.get_wallet_service") as mock_service:
         mock_service.return_value.get_wallets.return_value = []
@@ -88,3 +86,60 @@ def test_get_wallets_empty():
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_get_wallet_transfers_success():
+    fake_transfers = [
+        {
+            "id": 1,
+            "type": "outgoing",
+            "amount": Decimal("500.00"),
+            "status": "completed",
+            "created_at": "2026-11-20T12:00:00Z",
+        },
+        {
+            "id": 2,
+            "type": "incoming",
+            "amount": Decimal("200.00"),
+            "status": "completed",
+            "created_at": "2026-11-20T12:00:00Z",
+        },
+    ]
+    with patch("src.wallet.routes.get_wallet_service") as mock_service:
+        mock_service.return_value.get_wallet_transfers.return_value = fake_transfers
+        response = client.get("/wallets/1/transfers")
+        assert response.status_code == 200
+        assert response.json() == [
+            {
+                "id": 1,
+                "amount": "500.00",
+                "status": "completed",
+                "type": "outgoing",
+                "created_at": "2026-11-20T12:00:00Z",
+            },
+            {
+                "id": 2,
+                "amount": "200.00",
+                "status": "completed",
+                "type": "incoming",
+                "created_at": "2026-11-20T12:00:00Z",
+            },
+        ]
+
+
+def test_get_wallet_transfers_empty():
+    with patch("src.wallet.routes.get_wallet_service") as mock_service:
+        mock_service.return_value.get_wallet_transfers.return_value = []
+
+        response = client.get("/wallets/1/transfers")
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_get_wallet_transfers_not_found():
+    with patch("src.wallet.routes.get_wallet_service") as mock_service:
+        mock_service.return_value.get_wallet_transfers.return_value = None
+        response = client.get("/wallets/999/transfers")
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Wallet not found"}
