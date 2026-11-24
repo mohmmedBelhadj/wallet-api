@@ -1,11 +1,15 @@
+from pydantic import ValidationError
 from starlette.responses import JSONResponse
 from starlette.routing import Route
-from pydantic import ValidationError
 
 from src.wallet.repositories import WalletRepository
+from src.wallet.schemas import (
+    TransferRequestDTO,
+    TransferResponseDTO,
+    WalletResponseDTO,
+    WalletTransferHistoryDTO,
+)
 from src.wallet.services import WalletService
-from src.wallet.schemas import WalletResponseDTO
-from src.wallet.schemas import TransferRequestDTO, TransferResponseDTO
 
 
 def get_wallet_service():
@@ -86,6 +90,25 @@ async def create_transfer(request):
     return JSONResponse(response.model_dump(mode="json"))
 
 
+async def get_wallet_transfers(request):
+    wallet_id = int(request.path_params["wallet_id"])
+    service = get_wallet_service()
+
+    transfers = service.get_wallet_transfers(wallet_id)
+    if transfers is None:
+        return JSONResponse(
+            {"detail": "Wallet not found"},
+            status_code=404,
+        )
+
+    response = [
+        WalletTransferHistoryDTO.model_validate(transfer).model_dump(mode="json")
+        for transfer in transfers
+    ]
+
+    return JSONResponse(response)
+
+
 routes = [
     Route(
         "/wallets/{wallet_id:int}",
@@ -101,5 +124,10 @@ routes = [
         "/transfers",
         create_transfer,
         methods=["POST"],
+    ),
+    Route(
+        "/wallets/{wallet_id:int}/transfers",
+        get_wallet_transfers,
+        methods=["GET"],
     ),
 ]

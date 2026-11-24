@@ -16,8 +16,19 @@ dependencies = [
 dev = [
     "httpx>=0.28.1",
     "httpx2>=2.16.2",
+    "mypy>=2.4.1",
     "pytest>=9.2.0",
-
+    "ruff>=0.17.6",
 ]
 [tool.pytest.ini_options]
 pythonpath = ["."]
+
+[tool.mypy]
+explicit_package_bases = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

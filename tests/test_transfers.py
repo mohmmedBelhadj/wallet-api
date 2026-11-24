@@ -1,11 +1,9 @@
-
 from decimal import Decimal
 from unittest.mock import patch
 
 from starlette.testclient import TestClient
 
 from main import app
-
 
 client = TestClient(app)
 
@@ -75,9 +73,7 @@ def test_transfer_missing_field():
 
 def test_transfer_wallet_not_found():
     with patch("src.wallet.routes.get_wallet_service") as mock_service:
-        mock_service.return_value.transfer.side_effect = LookupError(
-            "Wallet not found"
-        )
+        mock_service.return_value.transfer.side_effect = LookupError("Wallet not found")
 
         response = client.post(
             "/transfers",
@@ -127,9 +123,7 @@ def test_transfer_same_wallet():
         )
 
     assert response.status_code == 400
-    assert response.json() == {
-        "detail": "Cannot transfer to the same wallet"
-    }
+    assert response.json() == {"detail": "Cannot transfer to the same wallet"}
 
 
 def test_transfer_different_currencies():
@@ -148,6 +142,4 @@ def test_transfer_different_currencies():
         )
 
     assert response.status_code == 400
-    assert response.json() == {
-        "detail": "Wallet currencies do not match"
-    }
+    assert response.json() == {"detail": "Wallet currencies do not match"}

@@ -1,4 +1,6 @@
+from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -23,3 +25,11 @@ class TransferResponseDTO(BaseModel):
     recipient_wallet: WalletResponseDTO
     amount: Decimal
     currency: str
+
+
+class WalletTransferHistoryDTO(BaseModel):
+    id: int
+    amount: Decimal
+    status: Literal["completed"]
+    type: Literal["incoming", "outgoing"]
+    created_at: datetime
